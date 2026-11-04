@@ -16,6 +16,7 @@
 #include "io.h"
 #include "log.h"
 #include "network.h"
+#include "ptp_sync.h"
 #include "serial_link.h"
 
 namespace {
@@ -23,11 +24,21 @@ namespace {
 constexpr uint32_t STATUS_PERIOD_MS = 5000;
 
 elapsedMillis g_status_timer;
+
+// Longest time between consecutive loop() entries. This includes yield(),
+// where the Ethernet stack runs, so it catches blocking anywhere.
+uint32_t g_loop_last_us = 0;
 uint32_t g_loop_max_us = 0;
 
 void report_status() {
-  log_printf("[SYS] mission=%s loop_max=%luus log_dropped=%lu\r\n",
-             mission_name(mission_selected()), g_loop_max_us, log_dropped());
+  // Offsets can be ~1e18 ns before the first sync, so print as 64-bit.
+  log_printf("[SYS] mission=%s ptp=%s offset=%lldns delay=%lldns "
+             "loop_max=%luus log_dropped=%lu\r\n",
+             mission_name(mission_selected()),
+             ptp_locked() ? "LOCKED" : "unlocked",
+             static_cast<long long>(ptp_offset_ns()),
+             static_cast<long long>(ptp_delay_ns()),
+             g_loop_max_us, log_dropped());
   g_loop_max_us = 0;
 }
 
@@ -65,13 +76,22 @@ void setup() {
   serial_link_init();
   can_init();
   network_init();
+  ptp_init();
+
+  g_loop_last_us = micros();
 }
 
 void loop() {
-  uint32_t start_us = micros();
+  uint32_t now_us = micros();
+  g_loop_max_us = max(g_loop_max_us, now_us - g_loop_last_us);
+  g_loop_last_us = now_us;
 
   if (mission_update()) {
     log_printf("[IO] mission selected: %s\r\n", mission_name(mission_selected()));
+  }
+
+  if (ptp_poll()) {
+    log_printf("[PTP] %s\r\n", ptp_locked() ? "locked" : "lost lock");
   }
 
   can_poll();
@@ -83,6 +103,5 @@ void loop() {
     report_status();
   }
 
-  g_loop_max_us = max(g_loop_max_us, micros() - start_us);
   // The Ethernet stack runs from yield(), which the core calls after loop().
 }
