@@ -24,6 +24,9 @@ void bus_init(T &bus, uint32_t baud, void (*handler)(const CAN_message_t &)) {
   bus.setBaudRate(baud);
   bus.setMaxMB(16);
   bus.enableFIFO();
+  bus.setFIFOFilter(REJECT_ALL);
+  bus.setFIFOFilter(0, CAN_RX_ID_A, STD);
+  bus.setFIFOFilter(1, CAN_RX_ID_B, STD);
   bus.onReceive(handler);
   // FlexCAN_T4 runs the receive callback inside the ISR until events() has
   // been called once. Call it before enabling the interrupt so frames are

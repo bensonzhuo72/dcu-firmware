@@ -12,6 +12,7 @@
 
 #include <Arduino.h>
 
+#include "bringup.h"
 #include "can_bus.h"
 #include "io.h"
 #include "log.h"
@@ -22,6 +23,9 @@
 namespace {
 
 constexpr uint32_t STATUS_PERIOD_MS = 5000;
+
+// Bench bring-up test (see bringup.h). Set to false for normal operation.
+constexpr bool BRINGUP_ENABLED = true;
 
 elapsedMillis g_status_timer;
 
@@ -50,16 +54,20 @@ void on_udp_packet(const uint8_t *data, size_t len,
                    const IPAddress &from_ip, uint16_t from_port) {
   log_printf("[ETH] %u bytes from %u.%u.%u.%u:%u\r\n", len,
              from_ip[0], from_ip[1], from_ip[2], from_ip[3], from_port);
+  if (BRINGUP_ENABLED) bringup_on_udp(data, len, from_ip, from_port);
   // TODO: parse commands (e.g. scheduling TRIG_1/TRIG_2).
-  (void)data;
 }
 
 void on_can_frame(Bus bus, uint32_t id, bool extended,
                   const uint8_t *data, uint8_t len) {
-  log_printf("[%s] id=0x%0*lX len=%u\r\n", bus == Bus::CAN0 ? "CAN0" : "CAN1",
-             extended ? 8 : 3, id, len);
+  char hex[3 * 8 + 1] = "";
+  for (uint8_t i = 0; i < len && i < 8; i++) {
+    snprintf(&hex[3 * i], 4, " %02X", data[i]);
+  }
+  log_printf("[%s] id=0x%0*lX len=%u data:%s\r\n",
+             bus == Bus::CAN0 ? "CAN0" : "CAN1", extended ? 8 : 3, id, len, hex);
+  if (BRINGUP_ENABLED) bringup_on_can(bus, id);
   // TODO: decode frames.
-  (void)data;
 }
 
 void on_link_line(const char *line, size_t len) {
@@ -77,6 +85,7 @@ void setup() {
   can_init();
   network_init();
   ptp_init();
+  if (BRINGUP_ENABLED) bringup_init();
 
   g_loop_last_us = micros();
 }
@@ -97,6 +106,7 @@ void loop() {
   can_poll();
   network_poll();
   serial_link_poll();
+  if (BRINGUP_ENABLED) bringup_poll();
 
   if (g_status_timer >= STATUS_PERIOD_MS) {
     g_status_timer -= STATUS_PERIOD_MS;

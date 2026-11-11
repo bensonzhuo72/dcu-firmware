@@ -58,8 +58,8 @@ void io_init() {
   }
 
   // Status inputs
-  pinMode(PIN_DSMS, INPUT);
-  pinMode(PIN_TSAB, INPUT);
+  pinMode(PIN_DSMS, INPUT_PULLUP);
+  pinMode(PIN_TSAB, INPUT_PULLUP);
 
   // BP_3.3V analog input
   analogReadResolution(ADC_BITS);

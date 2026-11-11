@@ -12,6 +12,10 @@
 constexpr uint32_t CAN0_BAUD = 500000;
 constexpr uint32_t CAN1_BAUD = 500000;
 
+// Hardware RX filter: both buses accept only these standard IDs.
+constexpr uint32_t CAN_RX_ID_A = 1;
+constexpr uint32_t CAN_RX_ID_B = 2;
+
 // Bus names follow the schematic:
 //   Bus::CAN0 -> Teensy FlexCAN CAN1 (pins 22 TX / 23 RX)
 //   Bus::CAN1 -> Teensy FlexCAN CAN2 (pins 1 TX / 0 RX)
