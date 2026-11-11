@@ -13,6 +13,13 @@
 
 constexpr size_t LOG_LINE_MAX = 192;
 
+// When true, only lines starting with "[CAN" are printed; everything else is
+// silently discarded (not counted as dropped).
+constexpr bool LOG_CAN_ONLY = true;
+
+// True if a formatted line passes the filter above.
+bool log_allowed(const char *line);
+
 void log_printf(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 
 // Number of messages dropped because the USB buffer was full.

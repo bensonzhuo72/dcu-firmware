@@ -60,13 +60,17 @@ void on_udp_packet(const uint8_t *data, size_t len,
 
 void on_can_frame(Bus bus, uint32_t id, bool extended,
                   const uint8_t *data, uint8_t len) {
+  if (BRINGUP_ENABLED) {
+    // The test module prints every frame itself (USB and UART).
+    bringup_on_can(bus, id, extended, data, len);
+    return;
+  }
   char hex[3 * 8 + 1] = "";
   for (uint8_t i = 0; i < len && i < 8; i++) {
     snprintf(&hex[3 * i], 4, " %02X", data[i]);
   }
   log_printf("[%s] id=0x%0*lX len=%u data:%s\r\n",
              bus == Bus::CAN0 ? "CAN0" : "CAN1", extended ? 8 : 3, id, len, hex);
-  if (BRINGUP_ENABLED) bringup_on_can(bus, id);
   // TODO: decode frames.
 }
 

@@ -15,6 +15,7 @@ void log_printf(const char *fmt, ...) {
   va_end(args);
 
   if (n <= 0) return;
+  if (!log_allowed(buf)) return;
   size_t len = static_cast<size_t>(n);
   if (len >= sizeof(buf)) {
     // Truncated: keep the line ending so the next message starts cleanly.
@@ -31,3 +32,7 @@ void log_printf(const char *fmt, ...) {
 }
 
 uint32_t log_dropped() { return g_dropped; }
+
+bool log_allowed(const char *line) {
+  return !LOG_CAN_ONLY || strncmp(line, "[CAN", 4) == 0;
+}

@@ -25,8 +25,8 @@ void bus_init(T &bus, uint32_t baud, void (*handler)(const CAN_message_t &)) {
   bus.setMaxMB(16);
   bus.enableFIFO();
   bus.setFIFOFilter(REJECT_ALL);
-  bus.setFIFOFilter(0, CAN_RX_ID_A, STD);
-  bus.setFIFOFilter(1, CAN_RX_ID_B, STD);
+  uint8_t filter = 0;
+  for (uint32_t id : CAN_RX_IDS) bus.setFIFOFilter(filter++, id, STD);
   bus.onReceive(handler);
   // FlexCAN_T4 runs the receive callback inside the ISR until events() has
   // been called once. Call it before enabling the interrupt so frames are
@@ -44,7 +44,41 @@ void bus_poll(T &bus) {
   }
 }
 
+void add_flags(CanErrors &e, uint32_t esr1) {
+  e.bit1  |= (esr1 >> 15) & 1;
+  e.bit0  |= (esr1 >> 14) & 1;
+  e.ack   |= (esr1 >> 13) & 1;
+  e.crc   |= (esr1 >> 12) & 1;
+  e.form  |= (esr1 >> 11) & 1;
+  e.stuff |= (esr1 >> 10) & 1;
+}
+
+// The library's error interrupt reads and clears the ESR1 flags, queueing a
+// copy each time they change; drain that queue, then add the live register.
+// (Its error() decoder misreads error-passive, so decode ESR1 here.)
+template <typename T>
+CanErrors bus_errors(T &bus, uint32_t base) {
+  CanErrors e;
+  CAN_error_t err;
+  while (bus.error(err, false)) add_flags(e, err.ESR1);
+
+  uint32_t esr1 = FLEXCANb_ESR1(base);
+  uint32_t ecr = FLEXCANb_ECR(base);
+  add_flags(e, esr1);
+  e.tec = ecr & 0xFF;
+  e.rec = (ecr >> 8) & 0xFF;
+  uint32_t flt = (esr1 >> 4) & 0x3;  // FLTCONF
+  e.state = flt == 0 ? CanState::Active
+          : flt == 1 ? CanState::Passive
+                     : CanState::BusOff;
+  return e;
+}
+
 }  // namespace
+
+CanErrors can_errors(Bus bus) {
+  return bus == Bus::CAN0 ? bus_errors(can0, CAN1) : bus_errors(can1, CAN2);
+}
 
 void can_init() {
   bus_init(can0, CAN0_BAUD, on_can0_rx);
